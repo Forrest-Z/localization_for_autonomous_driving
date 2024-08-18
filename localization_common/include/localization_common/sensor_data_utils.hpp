@@ -19,6 +19,7 @@
 #include "localization_common/sensor_data/twist_data.hpp"
 #include "localization_common/sensor_data/imu_data.hpp"
 #include "localization_common/sensor_data/odom_data.hpp"
+#include "localization_common/sensor_data/pose_data.hpp"
 
 namespace localization_common
 {
@@ -44,5 +45,12 @@ Eigen::Matrix4d interpolate_pose(
 ImuData interpolate_imu(const ImuData & data1, const ImuData & data2, double time);
 
 OdomData interpolate_odom(const OdomData & data1, const OdomData & data2, double time);
+
+TwistData get_twist_from_odom(const OdomData & odom);
+
+TwistData estimate_twist_by_pose(
+  const Eigen::Matrix4d & pose1, const Eigen::Matrix4d & pose2, double t1, double t2);
+
+TwistData estimate_twist_by_pose(const PoseData & pose1, const PoseData & pose2);
 
 }  // namespace localization_common
