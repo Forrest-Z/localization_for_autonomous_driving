@@ -19,6 +19,7 @@
 #include <cmath>
 
 #include "slt_common/sensor_data_utils.hpp"
+#include "slt_common/lidar_utils.hpp"
 
 namespace slt_lidar_locator
 {
@@ -86,18 +87,10 @@ bool LidarLocalization::add_gnss_odom(const slt_common::OdomData & gnss_odom)
   return true;
 }
 
-bool LidarLocalization::update(
-  const slt_common::LidarData<slt_common::PointXYZIRT> & lidar_data)
+bool LidarLocalization::update(const slt_common::LidarData & lidar_data)
 {
   has_new_local_map_ = false;
-  current_lidar_data_.time = lidar_data.time;
-  current_lidar_data_.point_cloud =
-    pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::copyPointCloud(*lidar_data.point_cloud, *current_lidar_data_.point_cloud);
-  // remove invalid measurements
-  std::vector<int> indices;
-  pcl::removeNaNFromPointCloud(
-    *current_lidar_data_.point_cloud, *current_lidar_data_.point_cloud, indices);
+  current_lidar_data_ = lidar_data;
   // initialize if not
   if (!has_inited_) {
     if (init_global_localization()) {
@@ -141,7 +134,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr LidarLocalization::get_local_map()
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr LidarLocalization::get_current_scan()
 {
-  auto filtered_cloud = display_filter_->apply(current_lidar_data_.point_cloud);
+  auto filtered_cloud = display_filter_->apply(to_pointcloud_xyz(current_lidar_data_));
   pcl::transformPointCloud(*filtered_cloud, *filtered_cloud, current_lidar_frame_.pose);
   return filtered_cloud;
 }
@@ -154,9 +147,8 @@ slt_common::OdomData LidarLocalization::get_current_odom()
   if (history_frames_.size() >= 2) {
     auto & frame1 = history_frames_[history_frames_.size() - 2];
     auto & frame2 = history_frames_[history_frames_.size() - 1];
-    auto twist = slt_common::estimate_twist_by_pose(
-      frame1.pose, frame2.pose, frame1.time,
-      frame2.time);
+    auto twist =
+      slt_common::estimate_twist_by_pose(frame1.pose, frame2.pose, frame1.time, frame2.time);
     odom.linear_velocity = twist.linear_velocity;
     odom.angular_velocity = twist.angular_velocity;
   }
@@ -218,7 +210,7 @@ bool LidarLocalization::update_local_map(const Eigen::Vector3d & position)
 bool LidarLocalization::match_scan_to_map(const Eigen::Matrix4d & predict_pose)
 {
   // downsample current lidar point cloud
-  auto filtered_cloud = current_scan_filter_->apply(current_lidar_data_.point_cloud);
+  auto filtered_cloud = current_scan_filter_->apply(to_pointcloud_xyz(current_lidar_data_));
   // matching
   registration_->match(filtered_cloud, predict_pose);
   // result
@@ -251,7 +243,7 @@ bool LidarLocalization::get_initial_pose_by_coarse_position(
   box_filter_->set_origin(coarse_position);
   auto local_map = box_filter_->apply(global_map_);
   // downsample
-  auto filtered_scan = coarse_voxel_filter_->apply(current_lidar_data_.point_cloud);
+  auto filtered_scan = coarse_voxel_filter_->apply(to_pointcloud_xyz(current_lidar_data_));
   auto filtered_map = coarse_voxel_filter_->apply(local_map);
   coarse_registration_->set_target(filtered_map);
   // match
@@ -280,7 +272,7 @@ bool LidarLocalization::get_initial_pose_by_coarse_pose(
   box_filter_->set_origin(coarse_pose.block<3, 1>(0, 3));
   auto local_map = box_filter_->apply(global_map_);
   // downsample
-  auto filtered_scan = coarse_voxel_filter_->apply(current_lidar_data_.point_cloud);
+  auto filtered_scan = coarse_voxel_filter_->apply(to_pointcloud_xyz(current_lidar_data_));
   auto filtered_map = coarse_voxel_filter_->apply(local_map);
   coarse_registration_->set_target(filtered_map);
   // match
@@ -297,7 +289,7 @@ bool LidarLocalization::get_initial_pose_by_coarse_pose(
 bool LidarLocalization::get_initial_pose_by_scan_context(Eigen::Matrix4d & initial_pose)
 {
   // place recognition by using scan context
-  if (!scan_context_manager_->detect_loop_closure(current_lidar_data_.point_cloud)) {
+  if (!scan_context_manager_->detect_loop_closure(to_pointcloud_xyz(current_lidar_data_))) {
     return false;
   }
   Eigen::Matrix4d proposal_pose = scan_context_manager_->get_pose();

@@ -17,6 +17,7 @@
 #include <pcl/common/transforms.h>
 
 #include "slt_common/sensor_data_utils.hpp"
+#include "slt_common/lidar_utils.hpp"
 
 namespace slt_lidar_odometry
 {
@@ -49,15 +50,11 @@ void SimpleOdometry::set_extrinsic(const Eigen::Matrix4d & T_base_lidar)
   T_lidar_base_ = T_base_lidar.inverse();
 }
 
-
-bool SimpleOdometry::update(
-  const slt_common::LidarData<slt_common::PointXYZIRT> & lidar_data)
+bool SimpleOdometry::update(const slt_common::LidarData & lidar_data)
 {
   has_new_local_map_ = false;
   current_frame_.time = lidar_data.time;
-  current_frame_.point_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(
-    new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::copyPointCloud(*lidar_data.point_cloud, *current_frame_.point_cloud);
+  current_frame_.point_cloud = to_pointcloud_xyz(lidar_data);
   if (key_frames_.empty()) {
     // initialize the first frame
     current_frame_.pose = T_base_lidar_;

@@ -15,6 +15,7 @@
 #include "slt_lidar_odometry/loam_odometry.hpp"
 
 #include "slt_common/sensor_data_utils.hpp"
+#include "slt_common/lidar_utils.hpp"
 
 namespace slt_lidar_odometry
 {
@@ -24,8 +25,7 @@ LoamOdometry::LoamOdometry(const YAML::Node & config)
   // init registration and filter
   feature_extraction_ =
     std::make_shared<slt_common::LoamFeatureExtraction>(config["loam_feature_extraction"]);
-  registration_ =
-    std::make_shared<slt_common::LoamRegistration>(config["loam_registration"]);
+  registration_ = std::make_shared<slt_common::LoamRegistration>(config["loam_registration"]);
   using VoxelFilter = slt_common::VoxelFilter;
   display_filter_ = std::make_shared<VoxelFilter>(config["display_filter"]);
   bool enabel = config["enable_elapsed_time_statistics"].as<bool>();
@@ -42,8 +42,7 @@ void LoamOdometry::set_extrinsic(const Eigen::Matrix4d & T_base_lidar)
   T_lidar_base_ = T_base_lidar.inverse();
 }
 
-bool LoamOdometry::update(
-  const slt_common::LidarData<slt_common::PointXYZIRT> & lidar_data)
+bool LoamOdometry::update(const slt_common::LidarData & lidar_data)
 {
   elapsed_time_statistics_.tic("update");
   current_frame_.time = lidar_data.time;
@@ -103,8 +102,7 @@ slt_common::OdomData LoamOdometry::get_current_odom()
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr LoamOdometry::get_current_scan()
 {
-  pcl::PointCloud<pcl::PointXYZ>::Ptr current_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::copyPointCloud(*current_frame_.point_cloud, *current_cloud);
+  auto current_cloud = to_pointcloud_xyz(current_frame_.point_cloud);
   return display_filter_->apply(current_cloud);
 }
 

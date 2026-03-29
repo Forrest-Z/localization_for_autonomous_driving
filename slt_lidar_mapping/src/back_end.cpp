@@ -14,7 +14,7 @@
 
 #include "slt_lidar_mapping/back_end.hpp"
 
-#include "slt_common/sensor_data_utils.hpp"
+#include "slt_common/lidar_utils.hpp"
 
 namespace slt_lidar_mapping
 {
@@ -69,8 +69,7 @@ bool BackEnd::add_loop_candidate(const slt_common::LoopCandidate & loop_candidat
 }
 
 bool BackEnd::update(
-  const slt_common::LidarData<pcl::PointXYZ> & lidar_data,
-  const slt_common::OdomData & lidar_odom)
+  const slt_common::LidarData & lidar_data, const slt_common::OdomData & lidar_odom)
 {
   has_new_key_frame_ = false;
   has_new_optimized_ = false;
@@ -79,7 +78,8 @@ bool BackEnd::update(
     has_new_key_frame_ = true;
     // add new key_frame
     Eigen::Matrix4d pose = T_map_odom_ * current_lidar_odom_.pose * T_base_lidar_;
-    key_frame_manager_->add_key_frame(lidar_odom.time, pose, lidar_data.point_cloud);
+    auto cloud_xyz = to_pointcloud_xyz(lidar_data);
+    key_frame_manager_->add_key_frame(lidar_odom.time, pose, cloud_xyz);
     // add node
     add_node_and_edge();
     if (optimize(false)) {
@@ -119,9 +119,15 @@ bool BackEnd::optimize(bool force)
   return true;
 }
 
-bool BackEnd::has_new_key_frame() {return has_new_key_frame_;}
+bool BackEnd::has_new_key_frame()
+{
+  return has_new_key_frame_;
+}
 
-bool BackEnd::has_new_optimized() {return has_new_optimized_;}
+bool BackEnd::has_new_optimized()
+{
+  return has_new_optimized_;
+}
 
 slt_common::OdomData BackEnd::get_current_odom()
 {

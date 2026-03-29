@@ -14,16 +14,26 @@
 
 #pragma once
 
+#include <pcl/common/io.h>
+
 #include "slt_common/sensor_data/lidar_data.hpp"
 #include "slt_common/sensor_data/twist_data.hpp"
 
 namespace slt_common
 {
 
-bool convert_velodyne64(
-  const LidarData<pcl::PointXYZI> & point1, LidarData<PointXYZIRT> & point2, double dt = 0.1,
-  bool is_clockwise = false);
+bool convert_velodyne64(LidarData & lidar_data, double dt = 0.1, bool is_clockwise = false);
 
-bool undistort_point_cloud(LidarData<PointXYZIRT> & lidar_data, const TwistData & twist_data);
+bool undistort_point_cloud(LidarData & lidar_data, const TwistData & twist_data);
+
+void remove_nan_from_pointcloud(LidarData & lidar_data);
+
+pcl::PointCloud<pcl::PointXYZ>::Ptr to_pointcloud_xyz(
+  const pcl::PointCloud<PointXYZIRT>::Ptr & cloud);
+
+inline pcl::PointCloud<pcl::PointXYZ>::Ptr to_pointcloud_xyz(const LidarData & lidar_data)
+{
+  return to_pointcloud_xyz(lidar_data.point_cloud);
+}
 
 }  // namespace slt_common

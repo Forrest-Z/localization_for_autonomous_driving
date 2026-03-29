@@ -14,9 +14,8 @@
 
 #include "slt_lidar_mapping/lio_back_end.hpp"
 
-#include <filesystem>
-
 #include "slt_common/sensor_data_utils.hpp"
+#include "slt_common/lidar_utils.hpp"
 
 namespace slt_lidar_mapping
 {
@@ -93,8 +92,7 @@ bool LioBackEnd::add_loop_candidate(const slt_common::LoopCandidate & loop_candi
 }
 
 bool LioBackEnd::update(
-  const slt_common::LidarData<pcl::PointXYZ> & lidar_data,
-  const slt_common::OdomData & lidar_odom)
+  const slt_common::LidarData & lidar_data, const slt_common::OdomData & lidar_odom)
 {
   has_new_key_frame_ = false;
   has_new_optimized_ = false;
@@ -103,7 +101,8 @@ bool LioBackEnd::update(
     has_new_key_frame_ = true;
     // add new key_frame
     Eigen::Matrix4d pose = T_map_odom_ * lidar_odom.pose * T_base_lidar_;
-    key_frame_manager_->add_key_frame(lidar_odom.time, pose, lidar_data.point_cloud);
+    auto cloud_xyz = to_pointcloud_xyz(lidar_data);
+    key_frame_manager_->add_key_frame(lidar_odom.time, pose, cloud_xyz);
     new_key_frame_cnt_++;
     // add node
     add_node_and_edge();
@@ -146,9 +145,15 @@ bool LioBackEnd::optimize(bool force)
   return true;
 }
 
-bool LioBackEnd::has_new_key_frame() {return has_new_key_frame_;}
+bool LioBackEnd::has_new_key_frame()
+{
+  return has_new_key_frame_;
+}
 
-bool LioBackEnd::has_new_optimized() {return has_new_optimized_;}
+bool LioBackEnd::has_new_optimized()
+{
+  return has_new_optimized_;
+}
 
 slt_common::OdomData LioBackEnd::get_current_odom()
 {
@@ -179,8 +184,8 @@ bool LioBackEnd::init_graph_optimizer(const YAML::Node & config_node)
 {
   std::string graph_optimizer_method = config_node["graph_optimizer_method"].as<std::string>();
   if (graph_optimizer_method == "g2o") {
-    auto g2o_optimizer = std::make_shared<G2oGraphOptimizerPRVAG>(
-      config_node[graph_optimizer_method]);
+    auto g2o_optimizer =
+      std::make_shared<G2oGraphOptimizerPRVAG>(config_node[graph_optimizer_method]);
     Eigen::Vector3d gravity = Eigen::Vector3d(0.0, 0.0, -gravity_magnitude_);
     g2o_optimizer->set_gravity(gravity);
     graph_optimizer_ = g2o_optimizer;
@@ -219,8 +224,7 @@ bool LioBackEnd::check_new_key_frame(const slt_common::OdomData & lidar_odom)
   return false;
 }
 
-bool LioBackEnd::get_synced_imu_buffer(
-  double time, std::vector<slt_common::ImuData> & buffer)
+bool LioBackEnd::get_synced_imu_buffer(double time, std::vector<slt_common::ImuData> & buffer)
 {
   if (imu_buffer_.empty() || imu_buffer_.back().time < time) {
     return false;
